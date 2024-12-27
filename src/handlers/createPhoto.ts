@@ -33,6 +33,10 @@ export const main: APIGatewayProxyHandler = async function (
             title: validData.title,
             description: validData.description,
             photo: validData.photo,
+            thumbnailPhoto: validData.photo.replace(
+                "photos/",
+                "thumbnails/thumbnail_"
+            ),
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         };
@@ -47,8 +51,7 @@ export const main: APIGatewayProxyHandler = async function (
             title: data.title,
             description: data.description,
             photo: data.photo,
-            smallPhoto: null,
-            largePhoto: null,
+            thumbnailPhoto: data.thumbnailPhoto,
             createdAt: data.createdAt,
             updatedAt: data.updatedAt,
         };

@@ -2,11 +2,19 @@ import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
-import { Runtime } from "aws-cdk-lib/aws-lambda";
+import { Runtime, StartingPosition } from "aws-cdk-lib/aws-lambda";
 import { join as pathJoin } from "path";
 import { Cors, LambdaIntegration, RestApi } from "aws-cdk-lib/aws-apigateway";
-import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
-import { S3EventSource } from "aws-cdk-lib/aws-lambda-event-sources";
+import {
+    AttributeType,
+    BillingMode,
+    StreamViewType,
+    Table,
+} from "aws-cdk-lib/aws-dynamodb";
+import {
+    DynamoEventSource,
+    S3EventSource,
+} from "aws-cdk-lib/aws-lambda-event-sources";
 
 const RESOURCE_PREFIX = "LAMBDA_S3";
 
@@ -25,12 +33,14 @@ export class LambdaS3Stack extends cdk.Stack {
             sortKey: { name: "SK", type: AttributeType.STRING },
             removalPolicy: cdk.RemovalPolicy.DESTROY,
             billingMode: BillingMode.PAY_PER_REQUEST,
+            stream: StreamViewType.NEW_AND_OLD_IMAGES,
         });
 
         // setup lambda function
         const envVars = {
             BUCKET_NAME: s3Bucket.bucketName,
             TABLE_NAME: photosTable.tableName,
+            ELASTICSEARCH_URL: "",
         };
         const rootLambda = this.createLambdaFunction("root", envVars);
         const generateUploadUrlLambda = this.createLambdaFunction(
@@ -69,14 +79,21 @@ export class LambdaS3Stack extends cdk.Stack {
                 timeout: cdk.Duration.seconds(60),
             }
         );
+        const syncDataLambda = this.createLambdaFunction("syncData", envVars);
 
         photosTable.grantReadData(listPhotosLambda);
         photosTable.grantReadWriteData(createPhotoLambda);
 
         const s3PutEventSource = new S3EventSource(s3Bucket, {
             events: [s3.EventType.OBJECT_CREATED_PUT],
+            filters: [{ prefix: "photos/" }],
         });
         resizePhotoLambda.addEventSource(s3PutEventSource);
+
+        const dynamodbEventSource = new DynamoEventSource(photosTable, {
+            startingPosition: StartingPosition.LATEST,
+        });
+        syncDataLambda.addEventSource(dynamodbEventSource);
 
         // setup api gateway
         const api = new RestApi(this, `${RESOURCE_PREFIX}-RestApi`, {

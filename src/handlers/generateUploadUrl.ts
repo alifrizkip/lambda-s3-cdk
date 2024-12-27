@@ -48,7 +48,7 @@ export const main: APIGatewayProxyHandler = async function (
             .required();
         const passedData = fileSchema.parse(reqBody);
 
-        const s3Key = `${userSub}/${v4()}.${passedData.fileExtension}`;
+        const s3Key = `photos/${userSub}_${v4()}.${passedData.fileExtension}`;
 
         const s3Client = new S3Client();
         const cmd = new PutObjectCommand({
